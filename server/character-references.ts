@@ -44,13 +44,6 @@ export async function decodeReference(png: Buffer) {
   return { ...dims, pixels };
 }
 
-async function mirrorReference(png: Buffer): Promise<Buffer> {
-  const dims = readPngDims(png);
-  if (!dims || dims.w * dims.h > MAX_PIXELS) throw new Error("Invalid reference image dimensions");
-  return ffmpeg(png, ["-i", "pipe:0", "-vf", "hflip", "-frames:v", "1",
-    "-f", "image2pipe", "-vcodec", "png", "pipe:1"], dims.w * dims.h * 4 + 100_000);
-}
-
 function foreground(image: Awaited<ReturnType<typeof decodeReference>>) {
   const { w, h, pixels } = image;
   // The generation prompt reserves chroma green for the backdrop. Keep true alpha
@@ -136,7 +129,7 @@ const UPLOADED_REFERENCE_DIRECTIVE =
   "do not default to the largest or most prominent figure. ";
 
 export async function generateCharacterReferences(
-  prompt: string, model: ImageModelId, referenceImage?: string, generateSideLeftWithAI = false,
+  prompt: string, model: ImageModelId, referenceImage?: string,
 ) {
   const description = `Character description:\n${prompt.trim()}\n\n`;
   const referenceGuidance = referenceImage ? UPLOADED_REFERENCE_DIRECTIVE : "";
@@ -157,26 +150,21 @@ export async function generateCharacterReferences(
       model, [reference]);
     sources[view] = Buffer.from(base64, "base64");
   }
-  if (generateSideLeftWithAI) {
-    const frontReference = `data:image/png;base64,${sources.front.toString("base64")}`;
-    const base64 = await generateSpriteImage(
-      `${description}${DIRECTIVE}${VIEW_PROMPTS["side-left"]} ` +
-      "The supplied image shows this character from the FRONT. " +
-      "Turn the same character into a strict side profile facing the LEFT edge of the image. " +
-      "Use the front view to preserve identity, proportions, colors, and art style; " +
-      "do not horizontally flip, trace, or copy it. " +
-      "Keep every asymmetric feature attached to the same anatomical side of the character. " +
-      "An item held in the right hand must remain in the right hand; " +
-      "an item held in the left hand must remain in the left hand. " +
-      "Show side details consistently with the character description. " +
-      "The final character must face LEFT.",
-      model, [frontReference]);
-    sources["side-left"] = Buffer.from(base64, "base64");
-  } else {
-    sources["side-left"] = await mirrorReference(sources.side);
-  }
+  const frontReference = `data:image/png;base64,${sources.front.toString("base64")}`;
+  const sideLeft = await generateSpriteImage(
+    `${description}${DIRECTIVE}${VIEW_PROMPTS["side-left"]} ` +
+    "The supplied image shows this character from the FRONT. " +
+    "Turn the same character into a strict side profile facing the LEFT edge of the image. " +
+    "Use the front view to preserve identity, proportions, colors, and art style; " +
+    "do not horizontally flip, trace, or copy it. " +
+    "Keep every asymmetric feature attached to the same anatomical side of the character. " +
+    "An item held in the right hand must remain in the right hand; " +
+    "an item held in the left hand must remain in the left hand. " +
+    "Show side details consistently with the character description. " +
+    "The final character must face LEFT.",
+    model, [frontReference]);
+  sources["side-left"] = Buffer.from(sideLeft, "base64");
   const normalized = await alignReferenceViews(sources);
-  if (!generateSideLeftWithAI) normalized.images["side-left"] = await mirrorReference(normalized.images.side);
   const revision = `references/${randomUUID()}`;
   const directory = spriteFile(revision);
   await mkdir(directory, { recursive: true });

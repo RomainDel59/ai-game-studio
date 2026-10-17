@@ -54,18 +54,11 @@ test("aligned references and saved endpoint poses survive generations, edits, re
     assert.deepEqual(reference.spriteDimensions, { w: 1024, h: 1024 });
     assert.equal(reference.referenceAlignment?.height, 820);
     const sideBytes = await bytes(reference.referenceViews.side!);
-    const right = await decodeReference(sideBytes);
-    const left = await decodeReference(await bytes(reference.referenceViews["side-left"]!));
-    const mirrored = Buffer.alloc(right.pixels.length);
-    for (let y = 0; y < right.h; y++) for (let x = 0; x < right.w; x++) {
-      right.pixels.copy(mirrored, (y * right.w + x) * 4,
-        (y * right.w + right.w - x - 1) * 4, (y * right.w + right.w - x) * 4);
-    }
-    assert.deepEqual(left.pixels, mirrored);
+    assert.ok((await bytes(reference.referenceViews["side-left"]!)).length > 0);
     assert.ok(reference.imageSources.some(option => option.source.kind === "reference"
       && option.source.view === "side-left" && option.label === "Side Left"));
     const recorded = (await readFile(requestsFile, "utf8")).trim().split("\n").map(line => JSON.parse(line));
-    assert.equal(recorded.length, 3);
+    assert.equal(recorded.length, 4);
     assert.match(recorded[0].body.prompt, /facing RIGHT/);
     assert.match(recorded[0].body.prompt, /hard-edged cel-shading tones/);
     assert.doesNotMatch(recorded[0].body.prompt, /Extremely low-resolution 8-bit/);
@@ -73,6 +66,10 @@ test("aligned references and saved endpoint poses survive generations, edits, re
     assert.equal(recorded[1].body.input_references[0].image_url.url, recorded[2].body.input_references[0].image_url.url);
     assert.match(recorded[1].body.prompt, /Strict FRONT/);
     assert.match(recorded[2].body.prompt, /Strict BACK/);
+    assert.match(recorded[3].body.prompt, /facing LEFT/);
+    assert.equal(recorded[3].body.input_references.length, 1);
+    assert.equal(recorded[3].body.input_references[0].image_url.url,
+      `data:image/png;base64,${(await bytes(reference.referenceViews.front!.replace(/front\.png$/, "front-original.png"))).toString("base64")}`);
 
     await ok("/api/projects/animations/new", { value: "idle-side" });
     headers["X-Animation-Id"] = "idle-side";
@@ -233,10 +230,10 @@ test("aligned references and saved endpoint poses survive generations, edits, re
     assert.equal(restyled.styleId, "storybook-3d");
     assert.equal(restyled.referenceStyleId, "storybook-3d");
     assert.ok(restyled.animations.length > 0, "regenerating references preserves animations");
-    const restyledCalls = (await readFile(requestsFile, "utf8")).trim().split("\n").slice(-3).map(line => JSON.parse(line).body);
+    const restyledCalls = (await readFile(requestsFile, "utf8")).trim().split("\n").slice(-4).map(line => JSON.parse(line).body);
     for (const call of restyledCalls) assert.match(call.prompt, /rounded sculpted forms/);
     const beforeAI = (await readFile(requestsFile, "utf8")).trim().split("\n").length;
-    response = await post("/api/sprites/generate", { prompt: "red hero", generateSideLeftWithAI: true });
+    response = await post("/api/sprites/generate", { prompt: "red hero" });
     assert.equal(response.status, 200);
     const aiView = (await response.json()).view as ProjectView;
     assert.ok(aiView.referenceViews["side-left"]);

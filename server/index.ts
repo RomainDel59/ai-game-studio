@@ -403,10 +403,8 @@ app.post("/api/sprites/generate", requireKey, async (req, res) => {
     }
     const model = requestedModel ?? DEFAULT_IMAGE_MODEL;
     const styleId = req.body?.styleId === undefined ? current.styleId : validateCharacterStyleId(req.body.styleId);
-    const generateSideLeftWithAI = req.body?.generateSideLeftWithAI ?? false;
-    if (typeof generateSideLeftWithAI !== "boolean") throw new Error("generateSideLeftWithAI must be a boolean");
     const generated = await generateCharacterReferences(characterImagePrompt(prompt, styleId), model,
-      await referenceImageDataUrl(current.referenceImage), generateSideLeftWithAI);
+      await referenceImageDataUrl(current.referenceImage));
     staged = generated.directory;
 
     await commitCharacterReferences({

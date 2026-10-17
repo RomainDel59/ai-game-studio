@@ -25,7 +25,6 @@ export interface AppState {
   referenceViews: Partial<Record<ReferenceView, string>>;
   referenceAlignment: ProjectView["referenceAlignment"];
   referenceView: ReferenceView;
-  generateSideLeftWithAI: boolean;
   startImage: ImageSourceOption | null;
   endImage: ImageSourceOption | null;
   imageSources: ImageSourceOption[];
@@ -61,7 +60,7 @@ export interface AppState {
 export function createInitialState(): AppState {
   return {
     referenceImage: null, referenceImageLoading: false,
-    referenceViews: {}, referenceAlignment: null, referenceView: "side", generateSideLeftWithAI: false,
+    referenceViews: {}, referenceAlignment: null, referenceView: "side",
     startImage: null, endImage: null, imageSources: [],
     project: null,
     navigating: false,

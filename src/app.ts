@@ -102,7 +102,6 @@ export function mountApp(root: HTMLElement) {
   const attachedReferenceImage = root.querySelector<HTMLImageElement>("#attached-reference-image")!;
   const attachedReferenceName = root.querySelector<HTMLElement>("#attached-reference-name")!;
   const spriteModelSelect = root.querySelector<HTMLSelectElement>("#sprite-model")!;
-  const generateSideLeftSwitch = root.querySelector<HTMLInputElement>("#generate-side-left-ai")!;
   const generateSpriteBtn = root.querySelector<HTMLButtonElement>("#btn-generate-sprite")!;
   const spritePreview = root.querySelector<HTMLDivElement>("#sprite-preview")!;
   const spriteStatus = root.querySelector<HTMLDivElement>("#sprite-status")!;
@@ -291,10 +290,6 @@ export function mountApp(root: HTMLElement) {
   spriteModelSelect.addEventListener("change", () => {
     store.set({ spriteModel: spriteModelSelect.value });
   });
-  generateSideLeftSwitch.addEventListener("change", () => {
-    store.set({ generateSideLeftWithAI: generateSideLeftSwitch.checked });
-  });
-
   motionInput.addEventListener("input", () => {
     store.set({ motionPrompt: motionInput.value });
   });
@@ -313,8 +308,7 @@ export function mountApp(root: HTMLElement) {
     setStatus(spriteStatus, `${spinner()}Generating and aligning side right, side left, front and back views…`);
     try {
       await persistDraft();
-      const result = await generateSprite(prompt, store.get().spriteModel, store.get().styleId,
-        store.get().generateSideLeftWithAI);
+      const result = await generateSprite(prompt, store.get().spriteModel, store.get().styleId);
       await applyView(result.view);
       store.set({ spriteSrc: result.dataUrl, referenceView: "side" });
       setStatus(spriteStatus, "Four aligned reference views ready.", "success");
@@ -735,8 +729,6 @@ export function mountApp(root: HTMLElement) {
       .map(s => `<option value="${escapeAttr(s.id)}">${escapeHtml(s.name)}</option>`).join("");
     spritePicker.value = project?.activeSpriteId ?? "";
     generateSpriteBtn.disabled = busy || !hasCharacter;
-    generateSideLeftSwitch.disabled = busy || !hasCharacter;
-    generateSideLeftSwitch.checked = state.generateSideLeftWithAI;
     spriteModelSelect.disabled = busy || !hasCharacter;
     const videoModel = state.videoModels.find(model => model.id === state.motionModel);
     const frameError = videoModel ? videoFrameError(videoModel, !!state.startImage, !!state.endImage) : null;
@@ -1066,11 +1058,6 @@ function renderShell(): string {
               <label class="field__label" for="sprite-model">Model</label>
               <select id="sprite-model" class="select"></select>
             </div>
-            <label class="side-left-switch" for="generate-side-left-ai">
-              <span>Generate Side Left with AI</span>
-              <input id="generate-side-left-ai" type="checkbox" role="switch" />
-              <span class="side-left-switch__track" aria-hidden="true"></span>
-            </label>
             <button id="btn-generate-sprite" class="btn btn--primary btn--block" type="button">
               ${sparkleIcon}
               Generate Character
