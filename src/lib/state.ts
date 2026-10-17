@@ -14,6 +14,7 @@ export const DEFAULT_VIDEO_MODEL = "x-ai/grok-imagine-video";
 export type AppStatus =
   | "idle"
   | "generating-image"
+  | "uploading-reference-view"
   | "generating-video"
   | "extracting-frames"
   | "done"

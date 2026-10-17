@@ -115,6 +115,12 @@ export function setReferenceImage(image: { name: string; dataUrl: string } | nul
   return postJson("/api/sprites/reference-image", { image });
 }
 
+export function uploadCharacterReferenceView(
+  view: ReferenceView, image: { name: string; dataUrl: string },
+): Promise<ProjectView> {
+  return postJson("/api/sprites/reference-view", { view, image });
+}
+
 export function animateSprite(
   image: string | null,
   text: string,

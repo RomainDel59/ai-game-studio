@@ -28,8 +28,9 @@ async function validateImage(bytes: Buffer): Promise<void> {
   });
 }
 
-export async function stageReferenceImage(value: unknown): Promise<SavedReferenceImage | null> {
-  if (value === null) return null;
+export async function parseReferenceImage(value: unknown): Promise<{
+  name: string; bytes: Buffer; type: ReferenceImageType;
+}> {
   if (!value || typeof value !== "object" || Array.isArray(value)) throw new Error("Invalid reference image");
   const { name, dataUrl } = value as Record<string, unknown>;
   if (typeof name !== "string" || !name || name.length > 255 || typeof dataUrl !== "string"
@@ -41,13 +42,19 @@ export async function stageReferenceImage(value: unknown): Promise<SavedReferenc
   if (!type || type !== match[1] || bytes.length > MAX_REFERENCE_IMAGE_BYTES
     || bytes.toString("base64") !== match[2]) throw new Error("Invalid reference image");
   await validateImage(bytes);
+  return { name: path.basename(name), bytes, type };
+}
+
+export async function stageReferenceImage(value: unknown): Promise<SavedReferenceImage | null> {
+  if (value === null) return null;
+  const { name, bytes, type } = await parseReferenceImage(value);
   const extension = type === "image/jpeg" ? "jpg" : type === "image/png" ? "png" : "webp";
   const file = `inputs/${randomUUID()}/reference.${extension}`;
   const directory = path.dirname(spriteFile(file));
   await mkdir(directory, { recursive: true });
   try { await writeFile(spriteFile(file), bytes); }
   catch (err) { await rm(directory, { recursive: true, force: true }); throw err; }
-  return { name: path.basename(name), path: file, type };
+  return { name, path: file, type };
 }
 
 export async function referenceImageDataUrl(image: SavedReferenceImage | null): Promise<string | undefined> {

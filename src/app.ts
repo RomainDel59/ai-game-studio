@@ -12,6 +12,7 @@ import {
   importProject,
   ProjectImportConflict,
   setReferenceImage,
+  uploadCharacterReferenceView,
   setActiveProject,
   getImageModels,
   getVideoModels,
@@ -30,7 +31,7 @@ import { mountFrameSize } from "./components/frame-size";
 import { mountFrameMagnifier } from "./components/frame-magnifier";
 import { Store, createInitialState, hydrateFromView } from "./lib/state";
 import { composeSpritesheet } from "./lib/spritesheet";
-import { REFERENCE_VIEWS, REFERENCE_LABELS, sourceKey, type ImageSourceOption } from "./lib/character";
+import { REFERENCE_VIEWS, REFERENCE_LABELS, sourceKey, type ImageSourceOption, type ReferenceView } from "./lib/character";
 import { videoFrameError } from "./lib/video-capabilities";
 import { REFERENCE_IMAGE_ACCEPT, isReferenceImageFile, readReferenceImage } from "./lib/reference-image";
 import { CHARACTER_STYLES, characterStyle, usesSmoothRendering, type CharacterStyleId } from "./lib/character-styles";
@@ -103,6 +104,8 @@ export function mountApp(root: HTMLElement) {
   const attachedReferenceName = root.querySelector<HTMLElement>("#attached-reference-name")!;
   const spriteModelSelect = root.querySelector<HTMLSelectElement>("#sprite-model")!;
   const generateSpriteBtn = root.querySelector<HTMLButtonElement>("#btn-generate-sprite")!;
+  const uploadViewBtn = root.querySelector<HTMLButtonElement>("#btn-upload-reference-view")!;
+  const uploadViewInput = root.querySelector<HTMLInputElement>("#reference-view-input")!;
   const spritePreview = root.querySelector<HTMLDivElement>("#sprite-preview")!;
   const spriteStatus = root.querySelector<HTMLDivElement>("#sprite-status")!;
   const referenceTabs = root.querySelector<HTMLElement>("#reference-tabs")!;
@@ -114,7 +117,7 @@ export function mountApp(root: HTMLElement) {
   referenceTabs.addEventListener("keydown", event => {
     if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) return;
     event.preventDefault();
-    const views = REFERENCE_VIEWS.filter(view => !!store.get().referenceViews[view]);
+    const views = [...REFERENCE_VIEWS];
     if (!views.length) return;
     const index = views.indexOf(store.get().referenceView);
     const next = event.key === "Home" ? 0 : event.key === "End" ? views.length - 1
@@ -275,6 +278,33 @@ export function mountApp(root: HTMLElement) {
   referenceInput.addEventListener("change", () => {
     const file = referenceInput.files?.[0];
     if (file) void attachReference(file);
+  });
+  let pendingUploadView: ReferenceView = "side";
+  uploadViewBtn.addEventListener("click", () => {
+    pendingUploadView = store.get().referenceView;
+    uploadViewInput.click();
+  });
+  uploadViewInput.addEventListener("change", async () => {
+    const file = uploadViewInput.files?.[0];
+    if (!file) return;
+    const view = pendingUploadView;
+    store.set({ status: "uploading-reference-view", errorMessage: null });
+    setStatus(spriteStatus, `${spinner()}Importing ${REFERENCE_LABELS[view]}…`);
+    try {
+      const image = await readReferenceImage(file);
+      if (!image) throw new Error("Choose a PNG, JPEG, or WebP image.");
+      await persistDraft();
+      await applyView(await uploadCharacterReferenceView(view, image));
+      store.set({ referenceView: view });
+      setStatus(spriteStatus, `${REFERENCE_LABELS[view]} imported.`, "success");
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Could not import character view.";
+      store.set({ status: "error", errorMessage: message });
+      setStatus(spriteStatus, message, "error");
+    } finally {
+      uploadViewInput.value = "";
+      if (store.get().status === "uploading-reference-view") store.set({ status: "idle" });
+    }
   });
   root.querySelector<HTMLElement>("#character-prompt-field")!.addEventListener("paste", event => {
     const clipboard = event.clipboardData;
@@ -657,6 +687,7 @@ export function mountApp(root: HTMLElement) {
     const busy =
       state.navigating || state.previewGifBuilding || state.referenceImageLoading ||
       state.status === "generating-image" ||
+      state.status === "uploading-reference-view" ||
       state.status === "generating-video" ||
       state.status === "extracting-frames";
 
@@ -729,6 +760,8 @@ export function mountApp(root: HTMLElement) {
       .map(s => `<option value="${escapeAttr(s.id)}">${escapeHtml(s.name)}</option>`).join("");
     spritePicker.value = project?.activeSpriteId ?? "";
     generateSpriteBtn.disabled = busy || !hasCharacter;
+    uploadViewBtn.disabled = uploadViewInput.disabled = busy || !hasCharacter;
+    uploadViewBtn.textContent = `Upload ${REFERENCE_LABELS[state.referenceView]}`;
     spriteModelSelect.disabled = busy || !hasCharacter;
     const videoModel = state.videoModels.find(model => model.id === state.motionModel);
     const frameError = videoModel ? videoFrameError(videoModel, !!state.startImage, !!state.endImage) : null;
@@ -745,17 +778,17 @@ export function mountApp(root: HTMLElement) {
 
     for (const view of REFERENCE_VIEWS) {
       const tab = root.querySelector<HTMLButtonElement>(`#reference-tab-${view}`)!;
-      tab.disabled = busy || !state.referenceViews[view];
+      tab.disabled = busy || !hasCharacter;
       tab.setAttribute("aria-selected", String(state.referenceView === view));
       tab.tabIndex = state.referenceView === view ? 0 : -1;
-      tab.title = state.referenceViews[view] ? `${REFERENCE_LABELS[view]} view` : "Generate Character to create this view";
+      tab.title = `${REFERENCE_LABELS[view]} view`;
     }
     spritePreview.setAttribute("aria-labelledby", `reference-tab-${state.referenceView}`);
     const referenceSrc = state.referenceViews[state.referenceView] ?? (state.referenceView === "side" ? state.spriteSrc : null);
     if (referenceSrc) {
       spritePreview.innerHTML = `<img src="${escapeAttr(referenceSrc)}" alt="${REFERENCE_LABELS[state.referenceView]} character reference" />`;
     } else if (!busy) {
-      spritePreview.innerHTML = `<span class="preview__placeholder">No sprite yet</span>`;
+      spritePreview.innerHTML = `<span class="preview__placeholder">No ${REFERENCE_LABELS[state.referenceView]} reference yet</span>`;
     }
 
     for (const key of ["startImage", "endImage"] as const) {
@@ -1072,6 +1105,11 @@ function renderShell(): string {
               <div id="sprite-preview" class="preview__box" role="tabpanel" aria-labelledby="reference-tab-side">
                 <span class="preview__placeholder">No sprite yet</span>
               </div>
+              <input id="reference-view-input" type="file" accept="${REFERENCE_IMAGE_ACCEPT}" hidden />
+              <button id="btn-upload-reference-view" class="btn btn--secondary btn--block reference-view-upload" type="button">
+                Upload Side Right
+              </button>
+              <p class="reference-view-upload__hint">Uploaded views can be used for animations. Generate Character replaces them.</p>
             </div>
           </section>
 

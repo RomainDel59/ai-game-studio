@@ -14,6 +14,8 @@ import { validateFrameSize } from "../src/lib/frame-size.js";
 import { characterImagePrompt, characterStyle, validateCharacterStyleId } from "../src/lib/character-styles.js";
 import { generateCharacterReferences } from "./character-references.js";
 import { stageReferenceImage, referenceImageDataUrl } from "./reference-image.js";
+import { stageCharacterReferenceView } from "./reference-view-upload.js";
+import { REFERENCE_VIEWS, type ReferenceView } from "../src/lib/character.js";
 import { existsSync } from "node:fs";
 import {
   DEFAULT_IMAGE_MODEL,
@@ -59,6 +61,7 @@ import {
   stageAnimationImage,
   commitCharacterReferences,
   commitReferenceImage,
+  commitImportedReferenceView,
   type ProjectManifest,
 } from "./projects.js";
 
@@ -303,6 +306,26 @@ app.post("/api/sprites/reference-image", async (req, res) => {
     res.json({ referenceImage: toView(await readManifest()).referenceImage });
   } catch (err) {
     if (staged) await rm(path.dirname(staged), { recursive: true, force: true }).catch(() => {});
+    handleError(err, res);
+  }
+});
+
+app.post("/api/sprites/reference-view", async (req, res) => {
+  let staged: string | undefined;
+  try {
+    if (!req.get("X-Project-Name") || !req.get("X-Sprite-Id")) {
+      throw new Error("Select a character first (X-Sprite-Id is required)");
+    }
+    const view = req.body?.view;
+    if (!REFERENCE_VIEWS.includes(view as ReferenceView)) throw new Error("Invalid character view");
+    await readManifest();
+    const imported = await stageCharacterReferenceView(view as ReferenceView, req.body?.image);
+    staged = imported.directory;
+    await commitImportedReferenceView(view as ReferenceView, imported.file, imported.dimensions);
+    staged = undefined;
+    res.json(toView(await readManifest()));
+  } catch (err) {
+    if (staged) await rm(staged, { recursive: true, force: true }).catch(() => {});
     handleError(err, res);
   }
 });

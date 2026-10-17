@@ -326,6 +326,20 @@ export async function commitReferenceImage(referenceImage: SavedReferenceImage |
   await writeJson(spriteFile(PROJECT_FILES.manifest), { ...character, referenceImage, updatedAt: new Date().toISOString() });
 }
 
+export async function commitImportedReferenceView(
+  view: ReferenceView, file: string, dimensions: { w: number; h: number },
+): Promise<void> {
+  const character = await characterManifest();
+  const referenceViews = { ...(character.referenceViews ?? (character.sprite ? { side: character.sprite } : {})),
+    [view]: file };
+  await writeJson(spriteFile(PROJECT_FILES.manifest), {
+    ...character, referenceViews, referenceAlignment: null, referenceStyleId: null,
+    sprite: view === "side" ? file : character.sprite,
+    spriteDimensions: view === "side" ? dimensions : character.spriteDimensions,
+    updatedAt: new Date().toISOString(),
+  });
+}
+
 /** Validate a picker value, then copy the exact pose into the target animation.
  * Saved endpoints survive source regeneration, selection changes, renames and deletion. */
 export function validateImageSource(value: unknown): ImageSource | null {
