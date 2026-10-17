@@ -158,15 +158,17 @@ export async function generateCharacterReferences(
     sources[view] = Buffer.from(base64, "base64");
   }
   if (generateSideLeftWithAI) {
-    const references = (["side", "front", "back"] as const)
-      .map(view => `data:image/png;base64,${sources[view].toString("base64")}`);
     const base64 = await generateSpriteImage(
       `${description}${DIRECTIVE}${VIEW_PROMPTS["side-left"]} ` +
-      "The supplied images show this same character from the right side, front and back. " +
-      "Generate a distinct left-side view, using all three images for identity and style. " +
-      "Preserve the character's anatomy, clothing, accessories, colors, proportions, art style, linework, texture and neutral pose. " +
-      "Do not reuse the right-facing profile or redesign the character.",
-      model, references);
+      "Imagine moving the camera around the stationary character to view the opposite side; " +
+      "do not horizontally flip, trace, or copy the right-facing image. " +
+      "Use the supplied right-facing view to preserve identity, proportions, colors, and art style. " +
+      "Keep every asymmetric feature attached to the same anatomical side of the character. " +
+      "An item held in the right hand must remain in the right hand; " +
+      "an item held in the left hand must remain in the left hand. " +
+      "Reveal the previously hidden side consistently with the character description. " +
+      "The final character must face LEFT.",
+      model, [reference]);
     sources["side-left"] = Buffer.from(base64, "base64");
   } else {
     sources["side-left"] = await mirrorReference(sources.side);

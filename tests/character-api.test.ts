@@ -243,7 +243,12 @@ test("aligned references and saved endpoint poses survive generations, edits, re
     const aiCalls = (await readFile(requestsFile, "utf8")).trim().split("\n").slice(beforeAI).map(line => JSON.parse(line).body);
     assert.equal(aiCalls.length, 4);
     assert.match(aiCalls[3].prompt, /facing LEFT/);
-    assert.equal(aiCalls[3].input_references.length, 3);
+    assert.match(aiCalls[3].prompt, /same anatomical side/);
+    assert.match(aiCalls[3].prompt, /right hand must remain in the right hand/);
+    assert.match(aiCalls[3].prompt, /do not horizontally flip/);
+    assert.equal(aiCalls[3].input_references.length, 1);
+    assert.equal(aiCalls[3].input_references[0].image_url.url,
+      aiCalls[1].input_references[0].image_url.url);
   } finally {
     if (child.exitCode === null && child.signalCode === null) {
       const exited = once(child, "exit"); child.kill(); await exited;
