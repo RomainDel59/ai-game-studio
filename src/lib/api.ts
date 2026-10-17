@@ -107,8 +107,9 @@ export function generateSprite(
   prompt: string,
   model?: string,
   styleId?: CharacterStyleId | null,
+  generateSideLeftWithAI = false,
 ): Promise<GenerateSpriteResponse> {
-  return postJson("/api/sprites/generate", { prompt, model, styleId });
+  return postJson("/api/sprites/generate", { prompt, model, styleId, generateSideLeftWithAI });
 }
 
 export function setReferenceImage(image: { name: string; dataUrl: string } | null): Promise<{ referenceImage: ReferenceImageAttachment | null }> {

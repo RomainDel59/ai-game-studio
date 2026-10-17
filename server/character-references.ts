@@ -44,6 +44,13 @@ export async function decodeReference(png: Buffer) {
   return { ...dims, pixels };
 }
 
+async function mirrorReference(png: Buffer): Promise<Buffer> {
+  const dims = readPngDims(png);
+  if (!dims || dims.w * dims.h > MAX_PIXELS) throw new Error("Invalid reference image dimensions");
+  return ffmpeg(png, ["-i", "pipe:0", "-vf", "hflip", "-frames:v", "1",
+    "-f", "image2pipe", "-vcodec", "png", "pipe:1"], dims.w * dims.h * 4 + 100_000);
+}
+
 function foreground(image: Awaited<ReturnType<typeof decodeReference>>) {
   const { w, h, pixels } = image;
   // The generation prompt reserves chroma green for the backdrop. Keep true alpha
@@ -109,6 +116,7 @@ export async function alignReferenceViews(sources: Record<ReferenceView, Buffer>
 
 const VIEW_PROMPTS: Record<ReferenceView, string> = {
   side: "Strict side profile, facing RIGHT (left-to-right).",
+  "side-left": "Strict side profile, facing LEFT (right-to-left). Keep the character facing left throughout the image.",
   front: "Strict FRONT view, facing directly toward the viewer.",
   back: "Strict BACK view, facing directly away from the viewer; show the back of the head and clothing.",
 };
@@ -127,7 +135,9 @@ const UPLOADED_REFERENCE_DIRECTIVE =
   "If the image contains multiple subjects, follow the text to select the intended subject; " +
   "do not default to the largest or most prominent figure. ";
 
-export async function generateCharacterReferences(prompt: string, model: ImageModelId, referenceImage?: string) {
+export async function generateCharacterReferences(
+  prompt: string, model: ImageModelId, referenceImage?: string, generateSideLeftWithAI = false,
+) {
   const description = `Character description:\n${prompt.trim()}\n\n`;
   const referenceGuidance = referenceImage ? UPLOADED_REFERENCE_DIRECTIVE : "";
   const side = await generateSpriteImage(`${description}${referenceGuidance}${DIRECTIVE}${VIEW_PROMPTS.side}`, model,
@@ -147,7 +157,22 @@ export async function generateCharacterReferences(prompt: string, model: ImageMo
       model, [reference]);
     sources[view] = Buffer.from(base64, "base64");
   }
+  if (generateSideLeftWithAI) {
+    const references = (["side", "front", "back"] as const)
+      .map(view => `data:image/png;base64,${sources[view].toString("base64")}`);
+    const base64 = await generateSpriteImage(
+      `${description}${DIRECTIVE}${VIEW_PROMPTS["side-left"]} ` +
+      "The supplied images show this same character from the right side, front and back. " +
+      "Generate a distinct left-side view, using all three images for identity and style. " +
+      "Preserve the character's anatomy, clothing, accessories, colors, proportions, art style, linework, texture and neutral pose. " +
+      "Do not reuse the right-facing profile or redesign the character.",
+      model, references);
+    sources["side-left"] = Buffer.from(base64, "base64");
+  } else {
+    sources["side-left"] = await mirrorReference(sources.side);
+  }
   const normalized = await alignReferenceViews(sources);
+  if (!generateSideLeftWithAI) normalized.images["side-left"] = await mirrorReference(normalized.images.side);
   const revision = `references/${randomUUID()}`;
   const directory = spriteFile(revision);
   await mkdir(directory, { recursive: true });

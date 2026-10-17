@@ -50,10 +50,20 @@ test("aligned references and saved endpoint poses survive generations, edits, re
     const reference = (await response.json()).view as ProjectView;
     assert.equal(reference.styleId, "cel-shaded");
     assert.equal(reference.referenceStyleId, "cel-shaded");
-    assert.deepEqual(Object.keys(reference.referenceViews), ["side", "front", "back"]);
+    assert.deepEqual(Object.keys(reference.referenceViews), ["side", "side-left", "front", "back"]);
     assert.deepEqual(reference.spriteDimensions, { w: 1024, h: 1024 });
     assert.equal(reference.referenceAlignment?.height, 820);
     const sideBytes = await bytes(reference.referenceViews.side!);
+    const right = await decodeReference(sideBytes);
+    const left = await decodeReference(await bytes(reference.referenceViews["side-left"]!));
+    const mirrored = Buffer.alloc(right.pixels.length);
+    for (let y = 0; y < right.h; y++) for (let x = 0; x < right.w; x++) {
+      right.pixels.copy(mirrored, (y * right.w + x) * 4,
+        (y * right.w + right.w - x - 1) * 4, (y * right.w + right.w - x) * 4);
+    }
+    assert.deepEqual(left.pixels, mirrored);
+    assert.ok(reference.imageSources.some(option => option.source.kind === "reference"
+      && option.source.view === "side-left" && option.label === "Side Left"));
     const recorded = (await readFile(requestsFile, "utf8")).trim().split("\n").map(line => JSON.parse(line));
     assert.equal(recorded.length, 3);
     assert.match(recorded[0].body.prompt, /facing RIGHT/);
@@ -225,6 +235,15 @@ test("aligned references and saved endpoint poses survive generations, edits, re
     assert.ok(restyled.animations.length > 0, "regenerating references preserves animations");
     const restyledCalls = (await readFile(requestsFile, "utf8")).trim().split("\n").slice(-3).map(line => JSON.parse(line).body);
     for (const call of restyledCalls) assert.match(call.prompt, /rounded sculpted forms/);
+    const beforeAI = (await readFile(requestsFile, "utf8")).trim().split("\n").length;
+    response = await post("/api/sprites/generate", { prompt: "red hero", generateSideLeftWithAI: true });
+    assert.equal(response.status, 200);
+    const aiView = (await response.json()).view as ProjectView;
+    assert.ok(aiView.referenceViews["side-left"]);
+    const aiCalls = (await readFile(requestsFile, "utf8")).trim().split("\n").slice(beforeAI).map(line => JSON.parse(line).body);
+    assert.equal(aiCalls.length, 4);
+    assert.match(aiCalls[3].prompt, /facing LEFT/);
+    assert.equal(aiCalls[3].input_references.length, 3);
   } finally {
     if (child.exitCode === null && child.signalCode === null) {
       const exited = once(child, "exit"); child.kill(); await exited;
