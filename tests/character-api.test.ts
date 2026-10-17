@@ -244,11 +244,12 @@ test("aligned references and saved endpoint poses survive generations, edits, re
     assert.equal(aiCalls.length, 4);
     assert.match(aiCalls[3].prompt, /facing LEFT/);
     assert.match(aiCalls[3].prompt, /same anatomical side/);
+    assert.match(aiCalls[3].prompt, /from the FRONT/);
     assert.match(aiCalls[3].prompt, /right hand must remain in the right hand/);
     assert.match(aiCalls[3].prompt, /do not horizontally flip/);
     assert.equal(aiCalls[3].input_references.length, 1);
     assert.equal(aiCalls[3].input_references[0].image_url.url,
-      aiCalls[1].input_references[0].image_url.url);
+      `data:image/png;base64,${(await bytes(aiView.referenceViews.front!.replace(/front\.png$/, "front-original.png"))).toString("base64")}`);
   } finally {
     if (child.exitCode === null && child.signalCode === null) {
       const exited = once(child, "exit"); child.kill(); await exited;
