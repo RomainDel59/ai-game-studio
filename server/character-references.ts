@@ -109,6 +109,7 @@ export async function alignReferenceViews(sources: Record<ReferenceView, Buffer>
 
 const VIEW_PROMPTS: Record<ReferenceView, string> = {
   side: "Strict side profile, facing RIGHT (left-to-right).",
+  "side-left": "Strict side profile, facing LEFT (right-to-left). Keep the character facing left throughout the image.",
   front: "Strict FRONT view, facing directly toward the viewer.",
   back: "Strict BACK view, facing directly away from the viewer; show the back of the head and clothing.",
 };
@@ -127,7 +128,9 @@ const UPLOADED_REFERENCE_DIRECTIVE =
   "If the image contains multiple subjects, follow the text to select the intended subject; " +
   "do not default to the largest or most prominent figure. ";
 
-export async function generateCharacterReferences(prompt: string, model: ImageModelId, referenceImage?: string) {
+export async function generateCharacterReferences(
+  prompt: string, model: ImageModelId, referenceImage?: string,
+) {
   const description = `Character description:\n${prompt.trim()}\n\n`;
   const referenceGuidance = referenceImage ? UPLOADED_REFERENCE_DIRECTIVE : "";
   const side = await generateSpriteImage(`${description}${referenceGuidance}${DIRECTIVE}${VIEW_PROMPTS.side}`, model,
@@ -147,6 +150,20 @@ export async function generateCharacterReferences(prompt: string, model: ImageMo
       model, [reference]);
     sources[view] = Buffer.from(base64, "base64");
   }
+  const frontReference = `data:image/png;base64,${sources.front.toString("base64")}`;
+  const sideLeft = await generateSpriteImage(
+    `${description}${DIRECTIVE}${VIEW_PROMPTS["side-left"]} ` +
+    "The supplied image shows this character from the FRONT. " +
+    "Turn the same character into a strict side profile facing the LEFT edge of the image. " +
+    "Use the front view to preserve identity, proportions, colors, and art style; " +
+    "do not horizontally flip, trace, or copy it. " +
+    "Keep every asymmetric feature attached to the same anatomical side of the character. " +
+    "An item held in the right hand must remain in the right hand; " +
+    "an item held in the left hand must remain in the left hand. " +
+    "Show side details consistently with the character description. " +
+    "The final character must face LEFT.",
+    model, [frontReference]);
+  sources["side-left"] = Buffer.from(sideLeft, "base64");
   const normalized = await alignReferenceViews(sources);
   const revision = `references/${randomUUID()}`;
   const directory = spriteFile(revision);

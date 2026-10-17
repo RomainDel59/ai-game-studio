@@ -16,6 +16,7 @@ function character(w: number, h: number, left: number, top: number, width: numbe
 test("different canvas sizes, positions and proportions produce exactly aligned silhouettes without stretching", async () => {
   const sources = {
     side: character(70, 80, 9, 6, 12, 60),
+    "side-left": character(70, 80, 49, 6, 12, 60),
     front: character(90, 90, 48, 35, 24, 40, true),
     back: character(120, 100, 50, 21, 30, 55),
   };
@@ -40,7 +41,7 @@ test("different canvas sizes, positions and proportions produce exactly aligned 
     assert.equal(bottom - top + 1, result.alignment.height);
     measured.push(right - left + 1);
   }
-  assert.ok(measured[0] < measured[1], "different view widths remain proportional");
+  assert.ok(measured[0] < measured[2], "different view widths remain proportional");
 });
 
 test("empty, clipped and invalid references fail instead of publishing a misleading aligned set", async () => {

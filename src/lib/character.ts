@@ -1,7 +1,7 @@
-export const REFERENCE_VIEWS = ["side", "front", "back"] as const;
+export const REFERENCE_VIEWS = ["side", "side-left", "front", "back"] as const;
 export type ReferenceView = (typeof REFERENCE_VIEWS)[number];
 export const REFERENCE_LABELS: Record<ReferenceView, string> = {
-  side: "Side", front: "Front", back: "Back",
+  side: "Side Right", "side-left": "Side Left", front: "Front", back: "Back",
 };
 export type ImageSource = (
   | { kind: "reference"; view: ReferenceView }

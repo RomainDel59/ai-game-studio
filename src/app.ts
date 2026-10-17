@@ -290,7 +290,6 @@ export function mountApp(root: HTMLElement) {
   spriteModelSelect.addEventListener("change", () => {
     store.set({ spriteModel: spriteModelSelect.value });
   });
-
   motionInput.addEventListener("input", () => {
     store.set({ motionPrompt: motionInput.value });
   });
@@ -306,13 +305,13 @@ export function mountApp(root: HTMLElement) {
       return;
     }
     store.set({ status: "generating-image", errorMessage: null });
-    setStatus(spriteStatus, `${spinner()}Generating and aligning side, front and back views…`);
+    setStatus(spriteStatus, `${spinner()}Generating and aligning side right, side left, front and back views…`);
     try {
       await persistDraft();
       const result = await generateSprite(prompt, store.get().spriteModel, store.get().styleId);
       await applyView(result.view);
       store.set({ spriteSrc: result.dataUrl, referenceView: "side" });
-      setStatus(spriteStatus, "Three aligned reference views ready.", "success");
+      setStatus(spriteStatus, "Four aligned reference views ready.", "success");
       toast("Character views generated");
     } catch (err) {
       const message = err instanceof Error ? err.message : "Failed to generate sprite";
@@ -749,7 +748,7 @@ export function mountApp(root: HTMLElement) {
       tab.disabled = busy || !state.referenceViews[view];
       tab.setAttribute("aria-selected", String(state.referenceView === view));
       tab.tabIndex = state.referenceView === view ? 0 : -1;
-      tab.title = state.referenceViews[view] ? `${REFERENCE_LABELS[view]} view` : "Generate Character to create all three views";
+      tab.title = state.referenceViews[view] ? `${REFERENCE_LABELS[view]} view` : "Generate Character to create this view";
     }
     spritePreview.setAttribute("aria-labelledby", `reference-tab-${state.referenceView}`);
     const referenceSrc = state.referenceViews[state.referenceView] ?? (state.referenceView === "side" ? state.spriteSrc : null);
